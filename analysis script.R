@@ -35,6 +35,28 @@ model_AD <- glm(restrict_AD ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulb
 summary(model_AD)
 
 
+# Predict probabilities from each model
+prob_up <- predict(model_up, newdata=df, type = "response")
+prob_down <- predict(model_down,newdata=df, type = "response")
+prob_AB <- predict(model_AB,newdata=df, type = "response")
+prob_AD <- predict(model_AD,newdata=df, type = "response")
+
+# Create ROC objects
+roc_up <- roc(df$restrict_Up, prob_up)
+roc_down <- roc(df$restrict_Down, prob_down)
+roc_AB <- roc(df$restrict_AB, prob_AB)
+roc_AD <- roc(df$restrict_AD, prob_AD)
+
+# Plot all ROC curves on the same graph
+plot(roc_up, col = "blue", legacy.axes = TRUE, print.auc = TRUE, main = "ROC Curves for Restriction Models")
+plot(roc_down, col = "red", add = TRUE, print.auc = TRUE, print.auc.y = 0.4)
+plot(roc_AB, col = "green", add = TRUE, print.auc = TRUE, print.auc.y = 0.3)
+plot(roc_AD, col = "purple", add = TRUE, print.auc = TRUE, print.auc.y = 0.2)
+
+# Add legend
+legend("bottomright", legend = c("Restrict Up", "Restrict Down", "Restrict AB", "Restrict AD"),
+       col = c("blue", "red", "green", "purple"), lwd = 2)
+
 # Logistic Regression Model 1: Predicting Any Restriction
 model_any <- glm(Restriction ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_any)
