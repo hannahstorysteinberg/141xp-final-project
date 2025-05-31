@@ -16,22 +16,32 @@ df <- read_csv("Motility_final with blank rows removed.csv", col_names = TRUE)
 head(df)
 df$Global_Motility[is.na(df$Global_Motility)] <- 0
 
+#AD = MR
+#AB = LR
+#UP = SR
+#DOWN = IR
+
+df$SR_score <- df$fSR - df$cSR
+df$IR_score <- df$fIR - df$cIR
+df$LR_score <- df$fLR - df$cLR
+df$MR_score <- df$fMR - df$cMR
+
 
 # Logistic Regression Model 1: Predicting Restrict Up
-model_up <- glm(restrict_Up ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_up <- glm(restrict_Up ~ SR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_up)
 
 #Upgaze+Downgaze+ADduction+ABduction+Retrobulbar_hemorrhage+Emphysema+fSR+fIR+fMR+fLR+restrict_Down+restrict_AB+restrict_AD+SR_size+IR_size+MR_size+LR_size+sum_fracture+muscle_bi
 # Logistic Regression Model 1: Predicting Restrict Down
-model_down <- glm(restrict_Down ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_down <- glm(restrict_Down ~ IR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_down)
 
 # Logistic Regression Model 1: Predicting Restrict AB
-model_AB <- glm(restrict_AB ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_AB <- glm(restrict_AB ~ LR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_AB)
 
 # Logistic Regression Model 1: Predicting Restrict AD
-model_AD <- glm(restrict_AD ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_AD <- glm(restrict_AD ~ MR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_AD)
 
 
@@ -57,8 +67,21 @@ plot(roc_AD, col = "purple", add = TRUE, print.auc = TRUE, print.auc.y = 0.2)
 legend("bottomright", legend = c("Restrict Up", "Restrict Down", "Restrict AB", "Restrict AD"),
        col = c("blue", "red", "green", "purple"), lwd = 2)
 
+
+library(sjPlot)
+plot_model(model_up)
+plot_model(model_down)
+plot_model(model_AD)
+plot_model(model_AB)
+
+library(ggplot2)
+
+p <- plot_model(model_down, type = "est", transform = "exp")  # 'transform = "exp"' for odds ratios
+p + geom_hline(yintercept = 1, linetype = "dashed", color = "red")
+
+
 # Logistic Regression Model 1: Predicting Any Restriction
-model_any <- glm(Restriction ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_any <- glm(Restriction ~ cSR+cIR+cMR+cLR+fSR+fIR+fMR+fSR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_any)
 
 
@@ -67,8 +90,8 @@ test_prob = predict(model_any, newdata = df, type = "response")
 test_roc = roc(df$Restriction ~ test_prob, plot = TRUE, print.auc = TRUE)
 
 # get threshold that render best results
-coords(test_roc, "best", "threshold")
-coords(test_roc)
+# coords(test_roc, "best", "threshold")
+# coords(test_roc)
 
 # df$Patient_ID <- as.factor(df$Patient_ID)
 # cor(df$Restriction, df$muscle_bi)
@@ -78,3 +101,21 @@ coords(test_roc)
 # 
 # table(df$Restriction)
 # table(df$muscle_bi)
+
+# 
+# # Logistic Regression Model 1: Predicting Restrict Up
+# model_up <- glm(restrict_Up ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+# summary(model_up)
+# 
+# #Upgaze+Downgaze+ADduction+ABduction+Retrobulbar_hemorrhage+Emphysema+fSR+fIR+fMR+fLR+restrict_Down+restrict_AB+restrict_AD+SR_size+IR_size+MR_size+LR_size+sum_fracture+muscle_bi
+# # Logistic Regression Model 1: Predicting Restrict Down
+# model_down <- glm(restrict_Down ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+# summary(model_down)
+# 
+# # Logistic Regression Model 1: Predicting Restrict AB
+# model_AB <- glm(restrict_AB ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+# summary(model_AB)
+# 
+# # Logistic Regression Model 1: Predicting Restrict AD
+# model_AD <- glm(restrict_AD ~ CSA_SR+CSA_IR+CSA_MR+CSA_LR+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+# summary(model_AD)
