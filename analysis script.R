@@ -68,14 +68,18 @@ legend("bottomright", legend = c("Restrict Up", "Restrict Down", "Restrict AB", 
        col = c("blue", "red", "green", "purple"), lwd = 2)
 
 
+# without line at 1
 library(sjPlot)
 plot_model(model_up)
 plot_model(model_down)
 plot_model(model_AD)
 plot_model(model_AB)
 
+
+# with line at 1
 library(ggplot2)
 
+# replace model_down with the model you are using
 p <- plot_model(model_down, type = "est", transform = "exp")  # 'transform = "exp"' for odds ratios
 p + geom_hline(yintercept = 1, linetype = "dashed", color = "red")
 
