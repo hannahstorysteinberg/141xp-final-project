@@ -27,21 +27,23 @@ df$LR_score <- df$fLR - df$cLR
 df$MR_score <- df$fMR - df$cMR
 
 
+df$sum_fracture_dich <- as.factor(ifelse(df$sum_fracture > 1, 1, 0))
+
 # Logistic Regression Model 1: Predicting Restrict Up
-model_up <- glm(restrict_Up ~ SR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_up <- glm(restrict_Up ~ SR_score+sum_fracture_dich+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_up)
 
 #Upgaze+Downgaze+ADduction+ABduction+Retrobulbar_hemorrhage+Emphysema+fSR+fIR+fMR+fLR+restrict_Down+restrict_AB+restrict_AD+SR_size+IR_size+MR_size+LR_size+sum_fracture+muscle_bi
 # Logistic Regression Model 1: Predicting Restrict Down
-model_down <- glm(restrict_Down ~ IR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_down <- glm(restrict_Down ~ IR_score+sum_fracture_dich+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_down)
 
 # Logistic Regression Model 1: Predicting Restrict AB
-model_AB <- glm(restrict_AB ~ LR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_AB <- glm(restrict_AB ~ LR_score+sum_fracture_dich+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_AB)
 
 # Logistic Regression Model 1: Predicting Restrict AD
-model_AD <- glm(restrict_AD ~ MR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
+model_AD <- glm(restrict_AD ~ MR_score+sum_fracture_dich+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_AD)
 
 
