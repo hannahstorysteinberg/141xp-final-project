@@ -42,7 +42,7 @@ summary(model_AB)
 # Logistic Regression Model 4: Predicting Restrict AD
 model_AD <- glm(restrict_AD ~ MR_score+sum_fracture+Retrobulbar_hemorrhage, data= df, family = "binomial")
 summary(model_AD)
-confint(model_AD) # confidence interval for AD
+round(exp(cbind(Estimate=coef(model_AD), confint(model_AD))),2) # confidence interval for AD
 
 # Predict probabilities from each model
 prob_up <- predict(model_up, newdata=df, type = "response")
