@@ -1,0 +1,289 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(psych)
+library(GGally)
+library(corrplot)  
+library(gridExtra)
+library(lme4)
+```
+
+```{r}
+motility <- read_csv("motility_final.csv")
+motility
+
+# change NAs under Global_Motility to 0s
+motility$Global_Motility[is.na(motility$Global_Motility)] <- 0
+
+# summary statistics
+str(motility)
+
+# convert variables to binary/categorical/ordinal if needed
+motility <- motility %>%
+  mutate(across(c(Sex, Laterality, Restriction, Global_Motility, 
+                  Floor, Roof, Lateral, Medial,
+                  Retrobulbar_hemorrhage, Emphysema,
+                  restrict_Up, restrict_Down, restrict_AB, restrict_AD,
+                  SR_size, IR_size, MR_size, LR_size,
+                  sum_fracture, muscle_bi), as.factor))
+motility$sum_fracture <- factor(motility$sum_fracture, 
+                                levels = c("1", "2", "3", "4"), 
+                                ordered = TRUE)
+motility <- motility %>%
+  mutate(across(ends_with("_size"), 
+                ~ factor(., levels = c("normal", "large"), ordered = TRUE)))
+
+str(motility) # include in report
+glimpse(motility)
+summary(motility) # include in report
+
+# missing data
+colSums(is.na(motility))
+```
+```{r}
+num_vars <- c("CSA_IR", "CSA_MR", "CSA_SR", "CSA_LR", "Age", "Thickness_cut", "sum_fracture", "Global_Motility")
+plot_list <- list()
+for (var in num_vars) {
+  if (is.numeric(motility[[var]]) || is.integer(motility[[var]])) {
+    p <- ggplot(motility, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+      labs(title = paste("Histogram of", var), x = var, y = "Count") +
+      theme_minimal()
+    plot_list[[var]] <- p
+  }
+}
+do.call(grid.arrange, c(plot_list, ncol = 2))
+```
+
+```{r}
+#2. Correlation Matrix
+cor_data <- motility %>%
+  select(all_of(num_vars)) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+corrplot(cor(cor_data), method = "color", type = "lower", 
+         col = colorRampPalette(c("#6D9EC1", "white", "#E46726"))(200),
+         tl.col = "black", addCoef.col = "black")
+cat("Complete cases for correlation:", sum(complete.cases(motility %>% select(all_of(num_vars)))), "\n")
+cat("Total rows:", nrow(motility), "\n")
+```
+```{r}
+cat_vars <- c("Sex", "Laterality", "Retrobulbar_hemorrhage", "Emphysema")
+plot_list_cat <- list()
+for (var in cat_vars) {
+  if (var %in% names(motility)) {
+    p <- ggplot(motility, aes_string(x = var, fill = var)) +
+      geom_bar() +
+      labs(title = paste("Barplot of", var), x = var, y = "Count") +
+      theme_minimal() +
+      theme(legend.position = "none")
+    plot_list_cat[[var]] <- p
+  }
+}
+do.call(grid.arrange, c(plot_list_cat, ncol = 2))
+```
+```{r}
+group_var <- "Restriction"
+boxplot_vars <- c("CSA_IR", "CSA_MR", "CSA_SR", "CSA_LR", "Age")
+plot_list_box <- list()
+for (var in boxplot_vars) {
+  if (all(c(var, group_var) %in% names(motility))) {
+    p <- ggplot(motility, aes_string(x = group_var, y = var, fill = group_var)) +
+      geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.size = 2) +
+      labs(title = paste(var, "by Restriction Status"), x = "Restriction Status", y = var) +
+      theme_minimal() +
+      theme(legend.position = "none")
+    plot_list_box[[var]] <- p
+  }
+}
+do.call(grid.arrange, c(plot_list_box, ncol = 2))
+
+```
+
+```{r}
+size_vars <- c("IR_size", "MR_size", "SR_size", "LR_size")
+plot_list_size <- list()
+for (var in size_vars) {
+  if (all(c(var, group_var) %in% names(motility))) {
+    p <- ggplot(motility, aes_string(x = group_var, fill = var)) +
+      geom_bar(position = "stack") +
+      geom_text(stat = "count", aes(label = after_stat(count)),
+                position = position_stack(vjust = 0.5), color = "white", size = 3) +
+      scale_fill_manual(values = c("normal" = "purple", "large" = "blue", "NA" = "black")) +
+      labs(title = paste(var, "by Restriction"), x = "Restriction", y = "Count", fill = var) +
+      theme_minimal()
+    plot_list_size[[var]] <- p
+  }
+}
+do.call(grid.arrange, c(plot_list_size, ncol = 2))
+```
+
+
+```{r}
+
+cvf_split <- read.csv("cvf_split.csv")
+library(lme4)
+
+# en1d = size
+cvf_split$MR_en1d <- cvf_split$MR_size
+cvf_split$LR_en1d <- cvf_split$LR_size
+cvf_split$IR_en1d <- cvf_split$IR_size
+cvf_split$SR_en1d <- cvf_split$SR_size
+names(cvf_split)
+MR <- glmer(restrict_AD ~ MR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+LR <- glmer(restrict_AB ~ LR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+IR <- glmer(restrict_Down ~ IR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+
+summary(MR)
+summary(LR)
+summary(IR)
+```
+```{r}
+extract_or <- function(model, term_name, model_label) {
+  coefs <- summary(model)$coefficients
+  est <- coefs[term_name, "Estimate"]
+  se  <- coefs[term_name, "Std. Error"]
+  data.frame(
+    term = term_name,
+    Model = model_label,
+    odds_ratio = exp(est),
+    conf.low = exp(est - 1.96*se),
+    conf.high = exp(est + 1.96*se)
+  )
+}
+ors <- bind_rows(
+  extract_or(MR, "MR_en1d", "MR"),
+  extract_or(LR, "LR_en1d", "LR"),
+  extract_or(IR, "IR_en1d", "IR")
+)
+ors
+ggplot(ors, aes(y = Model, x = odds_ratio)) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), size = 1.2) +
+  geom_vline(xintercept = 1, linetype = "dotted", size = 1) +
+  scale_x_log10(breaks = c(0.1, 0.5, 1.0, 2.0, 5.0, 10)) +
+  labs(x = "Odds Ratio", y = "MR (Adduction)”, “LR (Abduction)”, “IR (Downgaze)", title = "Odds Ratios for Muscle Enlargement Predicting Restriction",) +
+  theme_bw() +
+  theme(text = element_text(size = 14))
+```
+
+```{r}
+
+library(sjPlot)
+m2 <- glmer(Restriction ~ muscle_bi + Retrobulbar_hemorrhage + Emphysema + (1|Patient_ID), data = cvf_split, family = "binomial")
+summary(m2)
+plot_model(m2)
+
+coefs2 <- summary(m2)$coefficients
+
+OR_table <- data.frame(
+  Predictor = rownames(coefs2),
+  Odds_Ratio = exp(coefs2[, "Estimate"]),
+  CI_Lower = exp(coefs2[, "Estimate"] - 1.96 * coefs2[, "Std. Error"]),
+  CI_Upper = exp(coefs2[, "Estimate"] + 1.96 * coefs2[, "Std. Error"]),
+  P_value = coefs2[, "Pr(>|z|)"]
+)
+
+print(OR_table)
+```
+```{r}
+#  MR predicting restriction in ABduction 
+MR2 <- glmer(restrict_AB ~ MR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+
+# For LR predicting restriction in ADduction
+LR2 <- glmer(restrict_AD ~ LR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+
+# For IR predicting restriction in UPGaze (opposite)
+IR2 <- glmer(restrict_Up ~ IR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+
+# For SR predicting restriction in DOWNgaze
+SR2 <- glmer(restrict_Down ~ SR_en1d + (1|Patient_ID), data = cvf_split, family = "binomial")
+summary(MR2)
+summary(LR2)
+summary(IR2)
+summary(SR2) # dont count
+```
+```{r}
+ors2 <- bind_rows(
+  extract_or(MR2, "MR_en1d", "MR"),
+  extract_or(LR2, "LR_en1d", "LR"),
+  extract_or(IR2, "IR_en1d", "IR")
+)
+ors2
+ggplot(ors2, aes(y = Model, x = odds_ratio)) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), size = 1.2) +
+  geom_vline(xintercept = 1, linetype = "dotted", size = 1) +
+  scale_x_log10(breaks = c(0.1, 0.5, 1.0, 2.0, 5.0, 10)) +
+  labs(x = "Odds Ratio", y = "MR (Abduction)”, “LR (Adduction)”, “IR (Upgaze)", title = "Odds Ratios for Muscle Enlargement Predicting Restriction (Opposite Direction)",) +
+  theme_bw() +
+  theme(text = element_text(size = 14))
+```
+
+```{r}
+# Glob mob maybe don't count
+# Check for restriction in ALL directions for each participant
+motility$all_restricted <- with(motility,
+                                 restrict_AD == 1 &
+                                 restrict_AB == 1 &
+                                 restrict_Down == 1 &
+                                 restrict_Up == 1)
+
+num_all_restricted <- sum(motility$all_restricted, na.rm = TRUE)
+cat("Number of participants with restriction in all directions:", num_all_restricted, "\n")
+
+participants_complete <- cvf_split %>%
+  group_by(Patient_ID) %>%
+  summarize(
+    n_nonmissing = sum(!is.na(restrict_AD)) +
+                   sum(!is.na(restrict_AB)) +
+                   sum(!is.na(restrict_Down)) +
+                   sum(!is.na(restrict_Up))
+  ) %>%
+  filter(n_nonmissing == 4) # Change 4 if you have more/less directions
+
+cat("Number of participants with complete restriction data in all directions:", nrow(participants_complete), "\n")
+```
+```{r}
+cvf_split <- cvf_split %>%
+  mutate(
+    restrict_all = (restrict_Up == 1 & restrict_Down == 1 & restrict_AB == 1 & restrict_AD == 1)
+  )
+
+sum(cvf_split$restrict_all, na.rm = TRUE) 
+unique_IDs_all <- unique(cvf_split$Patient_ID[cvf_split$restrict_all])
+length(unique_IDs_all) 
+unique_IDs_all
+
+global_summary <- cvf_split %>%
+  group_by(Patient_ID) %>%
+  summarize(
+    n_restricted_dirs = sum(c(restrict_Up, restrict_Down, restrict_AB, restrict_AD), na.rm = TRUE),
+    global_restricted = all(c(restrict_Up, restrict_Down, restrict_AB, restrict_AD) == 1, na.rm = TRUE)
+  )
+
+print(global_summary)
+ggplot(global_summary, aes(x = factor(n_restricted_dirs))) +
+  geom_bar(fill = "#2c7fb8", alpha = 0.8) +
+  labs(
+    title = "Number of Gaze Directions Restricted per Patient",
+    x = "Count of Restricted Directions (out of 4)",
+    y = "Number of Patients"
+  ) +
+  theme_minimal(base_size = 14)
+
+```
+
+
+
+
+
+
